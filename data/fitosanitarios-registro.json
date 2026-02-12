@@ -1,0 +1,37 @@
+[
+  {
+    "nombre": "Azufre 80%",
+    "registro": "12345",
+    "usos": [
+      { "cultivos": ["vid", "viña", "uva", "olivo", "olivos", "almendro", "almendros", "trigo", "cereales", "hortalizas", "tomate", "pimiento", "pepino"], "dosisMax": "8 kg/ha", "unidad": "kg/ha" }
+    ]
+  },
+  {
+    "nombre": "Cobre 20% (oxicloruro)",
+    "registro": "23456",
+    "usos": [
+      { "cultivos": ["vid", "viña", "olivo", "almendro", "tomate", "pimiento", "patata", "hortalizas"], "dosisMax": "4 kg/ha", "unidad": "kg/ha" }
+    ]
+  },
+  {
+    "nombre": "Deltametrina 2.5%",
+    "registro": "34567",
+    "usos": [
+      { "cultivos": ["trigo", "cebada", "cereales", "maíz", "maiz", "olivo", "almendro", "hortalizas"], "dosisMax": "0.25 L/ha", "unidad": "L/ha" }
+    ]
+  },
+  {
+    "nombre": "Glifosato 36%",
+    "registro": "45678",
+    "usos": [
+      { "cultivos": ["barbecho", "preparación suelo", "suelo"], "dosisMax": "4 L/ha", "unidad": "L/ha" }
+    ]
+  },
+  {
+    "nombre": "Captan 50%",
+    "registro": "56789",
+    "usos": [
+      { "cultivos": ["manzano", "manzana", "peral", "pera", "melocotonero", "melocotón", "almendro", "vid", "viña"], "dosisMax": "2 kg/ha", "unidad": "kg/ha" }
+    ]
+  }
+]

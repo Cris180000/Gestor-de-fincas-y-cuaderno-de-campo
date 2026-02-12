@@ -1,0 +1,33 @@
+[
+  {
+    "nombre": "Urea 46%",
+    "n_pct": 46,
+    "p2o5_pct": 0,
+    "k2o_pct": 0
+  },
+  {
+    "nombre": "Nitrofoska 15-15-15",
+    "n_pct": 15,
+    "p2o5_pct": 15,
+    "k2o_pct": 15
+  },
+  {
+    "nombre": "Sulfato amónico 21%",
+    "n_pct": 21,
+    "p2o5_pct": 0,
+    "k2o_pct": 0
+  },
+  {
+    "nombre": "NPK 8-24-8",
+    "n_pct": 8,
+    "p2o5_pct": 24,
+    "k2o_pct": 8
+  },
+  {
+    "nombre": "Cloruro potásico 60%",
+    "n_pct": 0,
+    "p2o5_pct": 0,
+    "k2o_pct": 60
+  }
+]
+

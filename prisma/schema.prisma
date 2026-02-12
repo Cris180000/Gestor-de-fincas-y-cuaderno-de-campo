@@ -1,0 +1,164 @@
+// Gestor de Fincas y Cuaderno de Campo
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// --- Usuario ---
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  nombre    String
+  password  String   // En producción usar hash (bcrypt, etc.)
+  createdAt DateTime @default(now())
+
+  fincas Finca[]
+  costes Coste[]
+  devices Device[]
+  diagnosticos Diagnostico[]
+}
+
+// --- Finca ---
+model Finca {
+  id                   String   @id @default(cuid())
+  userId               String   @map("user_id")
+  nombre               String
+  ubicacion            String?
+  superficie           Float?   // hectáreas
+  notas                String?
+  referenciaCatastral  String?  @map("referencia_catastral") // RC 14 dígitos (finca catastral)
+  createdAt            DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parcelas Parcela[]
+  costes   Coste[]
+}
+
+// --- Parcela ---
+model Parcela {
+  id                   String   @id @default(cuid())
+  fincaId              String   @map("finca_id")
+  nombre               String
+  cultivo              String?  // cultivo principal o referencia
+  superficie           Float?   // hectáreas
+  notas                String?
+  referenciaCatastral  String?  @map("referencia_catastral") // Referencia catastral (14/18/20 dígitos)
+  // Control ambiental
+  zonaVulnerableNitratos Boolean  @default(false) @map("zv_nitratos")
+  limiteNAnualNkgHa       Float?               @map("limite_n_anual_kg_ha") // kg N/ha/año (ej. 170 en ZV)
+  createdAt            DateTime @default(now())
+
+  finca       Finca        @relation(fields: [fincaId], references: [id], onDelete: Cascade)
+  labores     Labor[]
+  incidencias Incidencia[]
+  costes      Coste[]
+  diagnosticos Diagnostico[]
+}
+
+// --- Labor (cuaderno de campo) ---
+// tipo: riego | abonado | tratamiento | poda | cosecha | otros
+// estado: pendiente | realizada (al marcar realizada se guardan lat/lon GPS)
+model Labor {
+  id          String    @id @default(cuid())
+  parcelaId   String    @map("parcela_id")
+  tipo        String    // riego, abonado, tratamiento, poda, cosecha, otros
+  fecha       DateTime
+  descripcion String
+  producto    String?
+  cantidad    String?
+  estado      String    @default("pendiente") // pendiente | realizada
+  realizadaAt DateTime?  @map("realizada_at")
+  lat         Float?    // coordenada al marcar como realizada
+  lon         Float?
+  // NPK por hectárea para labores de abonado
+  nKgHa       Float?    @map("n_kg_ha")
+  pKgHa       Float?    @map("p_kg_ha")
+  kKgHa       Float?    @map("k_kg_ha")
+  createdAt   DateTime  @default(now())
+
+  parcela Parcela @relation(fields: [parcelaId], references: [id], onDelete: Cascade)
+}
+
+// --- Incidencia ---
+// estado: abierta | resuelta
+model Incidencia {
+  id          String   @id @default(cuid())
+  parcelaId   String   @map("parcela_id")
+  fecha       DateTime
+  descripcion String
+  estado      String   @default("abierta") // abierta | resuelta
+  createdAt   DateTime @default(now())
+
+  parcela Parcela @relation(fields: [parcelaId], references: [id], onDelete: Cascade)
+}
+
+// --- Diagnóstico de cultivo (historial del Doctor de Cultivos / IA) ---
+model Diagnostico {
+  id                  String   @id @default(cuid())
+  userId              String   @map("user_id")
+  parcelaId           String?  @map("parcela_id")
+  fecha               DateTime @default(now())
+  sintomas            String
+  resumen             String
+  enfermedadPrincipal String?
+  confianza           Int?     // 0-100
+  tratamientoQuimico  String?
+  tratamientoEcologico String?
+  createdAt           DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parcela Parcela? @relation(fields: [parcelaId], references: [id], onDelete: SetNull)
+}
+
+// --- Coste (control al céntimo: directos e indirectos) ---
+// tipo: directo (semillas, fitos) | indirecto (amortización, seguros)
+model Coste {
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  fincaId          String?  @map("finca_id")
+  parcelaId        String?  @map("parcela_id")
+  fecha            DateTime
+  tipo             String   // directo | indirecto
+  categoria        String   // semillas | fitosanitarios | amortizacion | seguros | otros
+  concepto         String
+  importeCentimos  Int      @map("importe_centimos") // euros al céntimo para precisión
+  createdAt        DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  finca   Finca?   @relation(fields: [fincaId], references: [id], onDelete: SetNull)
+  parcela Parcela? @relation(fields: [parcelaId], references: [id], onDelete: SetNull)
+}
+
+// --- Dispositivos IoT (sensores) ---
+// tipo: humedad_suelo | estacion_clima (ampliable en el futuro)
+model Device {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  nombre      String
+  tipo        String   // humedad_suelo | estacion_clima
+  descripcion String?
+  ubicacion   String?  // descripción libre o "lat,lon"
+  createdAt   DateTime @default(now())
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  telemetry Telemetry[]
+}
+
+// --- Telemetría de sensores ---
+model Telemetry {
+  id        String   @id @default(cuid())
+  deviceId  String   @map("device_id")
+  timestamp DateTime
+  valor     Float
+  unidad    String   // "%", "kPa", "°C", "mm", etc.
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, timestamp], name: "idx_telemetry_device_ts")
+}

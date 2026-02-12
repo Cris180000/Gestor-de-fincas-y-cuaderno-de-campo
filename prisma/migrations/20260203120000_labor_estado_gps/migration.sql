@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "Labor" ADD COLUMN "estado" TEXT NOT NULL DEFAULT 'pendiente';
+ALTER TABLE "Labor" ADD COLUMN "realizada_at" DATETIME;
+ALTER TABLE "Labor" ADD COLUMN "lat" REAL;
+ALTER TABLE "Labor" ADD COLUMN "lon" REAL;
