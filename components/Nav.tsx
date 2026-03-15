@@ -9,7 +9,7 @@ const links = [
   { href: "/fincas", label: "Fincas" },
   { href: "/labores", label: "Cuaderno" },
   { href: "/ndvi", label: "NDVI" },
-  { href: "/diagnosis", label: "Doctor" },
+  { href: "/dashboard/diagnosis", label: "Doctor" },
   { href: "/costes", label: "Costes" },
   { href: "/incidencias", label: "Incidencias" },
   { href: "/ajustes", label: "Ajustes" },
@@ -40,7 +40,7 @@ export function Nav() {
   }
 
   return (
-    <nav className="flex items-center gap-1 overflow-x-auto px-4 py-2 bg-tierra-700/80 scrollbar-hide">
+    <nav className="hidden md:flex items-center gap-1 overflow-x-auto px-4 py-2 bg-tierra-700/80 scrollbar-hide">
       {links.map(({ href, label }) => (
         <Link
           key={href}

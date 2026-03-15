@@ -140,6 +140,7 @@ export interface LaborItem {
   nKgHa?: number | null;
   pKgHa?: number | null;
   kKgHa?: number | null;
+  weatherWarningIgnored?: boolean;
   createdAt: string;
   parcela?: { id: string; nombre: string; finca?: { id: string; nombre: string } };
 }
@@ -185,6 +186,7 @@ export const laboresApi = {
     descripcion: string;
     producto?: string;
     cantidad?: string;
+    weather_warning_ignored?: boolean;
   }) =>
     fetch(`${BASE}/api/labores`, {
       method: "POST",

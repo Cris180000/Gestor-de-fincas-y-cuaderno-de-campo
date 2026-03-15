@@ -9,6 +9,10 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        primary: "#047857",
+        secondary: "#f5f5f4",
+        accent: "#f59e0b",
+        destructive: "#be123c",
         tierra: {
           50: "#f7f5f0",
           100: "#ebe6da",
@@ -34,8 +38,13 @@ const config: Config = {
           900: "#1b3f22",
         },
       },
+      borderRadius: {
+        lg: "0.75rem",
+        xl: "0.75rem",
+        "2xl": "0.75rem",
+      },
       fontFamily: {
-        sans: ["system-ui", "Segoe UI", "sans-serif"],
+        sans: ["Inter", "Geist Sans", "system-ui", "Segoe UI", "sans-serif"],
         display: ["Georgia", "serif"],
       },
     },

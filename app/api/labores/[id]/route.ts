@@ -32,6 +32,7 @@ export async function GET(
       realizadaAt: labor.realizadaAt,
       lat: labor.lat,
       lon: labor.lon,
+      weatherWarningIgnored: labor.weatherWarningIgnored ?? false,
       createdAt: labor.createdAt,
       parcela: {
         id: labor.parcela.id,

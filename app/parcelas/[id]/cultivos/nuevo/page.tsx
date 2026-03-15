@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getStore, addCultivo } from "@/lib/store";
+import { parcelasApi } from "@/lib/offline-api";
 import type { Parcela as ParcelaType, Finca } from "@/lib/types";
 
 const ESTADOS = ["planificado", "activo", "cosechado", "abandonado"] as const;
@@ -13,16 +14,29 @@ export default function NuevoCultivoPage() {
   const router = useRouter();
   const parcelaId = params.id as string;
   const [store, setStore] = useState(getStore());
+  const [parcelaFromApi, setParcelaFromApi] = useState<{ id: string; nombre: string; fincaId: string } | null>(null);
+  const [loading, setLoading] = useState(false);
   const [nombre, setNombre] = useState("");
   const [variedad, setVariedad] = useState("");
   const [fechaPlantacion, setFechaPlantacion] = useState("");
   const [estado, setEstado] = useState<"planificado" | "activo" | "cosechado" | "abandonado">("activo");
   const [notas, setNotas] = useState("");
 
-  const parcela = store.parcelas.find((p: ParcelaType) => p.id === parcelaId);
+  const parcelaFromStore = store.parcelas.find((p: ParcelaType) => p.id === parcelaId);
+  const parcela = parcelaFromStore ?? parcelaFromApi;
   const finca = parcela ? store.fincas.find((f: Finca) => f.id === parcela.fincaId) : null;
 
   useEffect(() => setStore(getStore()), []);
+
+  useEffect(() => {
+    if (parcelaFromStore) return;
+    setLoading(true);
+    parcelasApi
+      .get(parcelaId)
+      .then((res) => setParcelaFromApi({ id: res.data.id, nombre: res.data.nombre, fincaId: res.data.fincaId }))
+      .catch(() => setParcelaFromApi(null))
+      .finally(() => setLoading(false));
+  }, [parcelaId, parcelaFromStore]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +51,14 @@ export default function NuevoCultivoPage() {
     });
     router.push(`/cultivos/${c.id}`);
   };
+
+  if (loading) {
+    return (
+      <div className="card text-center py-8">
+        <p className="text-tierra-600 mb-4">Cargando parcela…</p>
+      </div>
+    );
+  }
 
   if (!parcela) {
     return (

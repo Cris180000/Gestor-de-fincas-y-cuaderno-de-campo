@@ -35,7 +35,7 @@ export function BuscarCatastro({
   onChange,
   onDatos,
   soloInput,
-  placeholder = "Ej. 28390A0010000100000GP",
+  placeholder = "Ej. 18102A011007910001PS",
   label = "Referencia catastral",
   className = "",
 }: BuscarCatastroProps) {

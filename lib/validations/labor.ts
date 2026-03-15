@@ -9,10 +9,11 @@ export function validateTipo(tipo: unknown): tipo is TipoLabor {
 export interface LaborCreateInput {
   parcelaId: string;
   tipo: TipoLabor;
-  fecha: string; // ISO date YYYY-MM-DD
+  fecha: string; // ISO date or datetime (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss)
   descripcion: string;
   producto?: string;
   cantidad?: string;
+  weatherWarningIgnored?: boolean;
 }
 
 export interface LaborUpdateInput {
@@ -46,10 +47,11 @@ export function validateLaborCreate(
   if (!descripcion) errors.push("La descripción es obligatoria");
   const producto = typeof b.producto === "string" ? b.producto.trim() || undefined : undefined;
   const cantidad = typeof b.cantidad === "string" ? b.cantidad.trim() || undefined : undefined;
+  const weatherWarningIgnored = b.weather_warning_ignored === true;
   if (errors.length > 0) return { ok: false, errors };
   return {
     ok: true,
-    data: { parcelaId, tipo: tipo as TipoLabor, fecha, descripcion, producto, cantidad },
+    data: { parcelaId, tipo: tipo as TipoLabor, fecha, descripcion, producto, cantidad, weatherWarningIgnored },
   };
 }
 

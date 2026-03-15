@@ -91,6 +91,7 @@ function LaboresContent() {
   const [formParcelas, setFormParcelas] = useState<ParcelaItem[]>([]);
   const [formParcelaId, setFormParcelaId] = useState("");
   const [formFecha, setFormFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [formHora, setFormHora] = useState("08:00");
   const [formTipo, setFormTipo] = useState("riego");
   const [formDescripcion, setFormDescripcion] = useState("");
   const [formProducto, setFormProducto] = useState("");
@@ -106,82 +107,53 @@ function LaboresContent() {
     }
   }, [formFincaId]);
 
+  // Abrir formulario con campos pre-rellenados desde URL (ej. desde Doctor AI → Crear Tarea en Cuaderno)
+  useEffect(() => {
+    const openForm = searchParams.get("openForm");
+    const descripcionParam = searchParams.get("descripcion");
+    const tipoParam = searchParams.get("tipo");
+    const parcelaIdParam = searchParams.get("parcelaId");
+    const fechaParam = searchParams.get("fecha");
+    if (openForm !== "1") return;
+
+    setShowForm(true);
+    if (tipoParam) setFormTipo(tipoParam);
+    if (descripcionParam) setFormDescripcion(decodeURIComponent(descripcionParam));
+    if (fechaParam && /^\d{4}-\d{2}-\d{2}$/.test(fechaParam)) setFormFecha(fechaParam);
+
+    if (parcelaIdParam) {
+      parcelasApi.list({ pageSize: 500 }).then((r) => {
+        const p = r.data.find((x) => x.id === parcelaIdParam);
+        if (p) {
+          setFormFincaId(p.fincaId);
+          setFormParcelaId(parcelaIdParam);
+        } else {
+          setFormParcelaId(parcelaIdParam);
+        }
+      }).catch(() => setFormParcelaId(parcelaIdParam));
+    }
+  }, [searchParams]);
+
   const [showRedWarning, setShowRedWarning] = useState(false);
   const [redWarningText, setRedWarningText] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formParcelaId || !formDescripcion.trim()) return;
-    setFormError(null);
+  const fechaISO = `${formFecha}T${formHora}:00`;
 
-    // Bloqueo agronómico: si es tratamiento fitosanitario, comprobamos el "semáforo" horario
-    if (formTipo === "tratamiento") {
-      const parcelaSelObj = formParcelas.find((p) => p.id === formParcelaId);
-      const lat = parcelaSelObj?.lat ?? null;
-      const lon = parcelaSelObj?.lon ?? null;
-
-      if (lat != null && lon != null) {
-        try {
-          const params = new URLSearchParams({
-            lat: String(lat),
-            lon: String(lon),
-            units: "metric",
-            lang: "es",
-          });
-          const res = await fetch(`/api/weather/forecast?${params.toString()}`);
-          const text = await res.text();
-          if (res.ok) {
-            const data = JSON.parse(text) as {
-              slots24h?: {
-                time: string;
-                windKmh: number;
-                tempC: number;
-                rainProbPercent: number;
-                suitability: "bueno" | "regular" | "malo";
-              }[];
-            };
-            const slots = data.slots24h ?? [];
-            if (slots.length > 0) {
-              const now = Date.now();
-              let best = slots[0];
-              let bestDiff = Math.abs(new Date(best.time).getTime() - now);
-              for (const s of slots) {
-                const diff = Math.abs(new Date(s.time).getTime() - now);
-                if (diff < bestDiff) {
-                  best = s;
-                  bestDiff = diff;
-                }
-              }
-              if (best.suitability === "malo") {
-                setRedWarningText(
-                  `Las condiciones actuales (${new Date(best.time).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}) son ROJAS (prohibido): viento ${best.windKmh} km/h, temperatura ${best.tempC} °C, probabilidad de lluvia ${best.rainProbPercent} %. No se puede registrar un tratamiento fitosanitario en esta franja horaria.`
-                );
-                setShowRedWarning(true);
-                return; // bloqueante: no guardamos la labor
-              }
-            }
-          }
-        } catch {
-          // Si falla la consulta de clima, no bloqueamos por semáforo (se aplican solo validaciones de producto/NPK)
-        }
-      }
-    }
-
+  const doCreate = (weatherWarningIgnored: boolean) => {
     setLoadingForm(true);
     laboresApi
       .create({
         parcelaId: formParcelaId,
         tipo: formTipo,
-        fecha: formFecha,
+        fecha: fechaISO,
         descripcion: formDescripcion.trim(),
         producto: formProducto.trim() || undefined,
         cantidad: formCantidad.trim() || undefined,
+        ...(weatherWarningIgnored && { weather_warning_ignored: true }),
       })
       .then(() => {
         setShowForm(false);
+        setShowRedWarning(false);
         setFormDescripcion("");
         setFormProducto("");
         setFormCantidad("");
@@ -216,6 +188,49 @@ function LaboresContent() {
         }
       })
       .finally(() => setLoadingForm(false));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formParcelaId || !formDescripcion.trim()) return;
+    setFormError(null);
+
+    const isWeatherRelevant = formTipo === "tratamiento" || formTipo === "abonado";
+    const parcelaSelObj = formParcelas.find((p) => p.id === formParcelaId);
+    const lat = (parcelaSelObj as { lat?: number } | undefined)?.lat ?? null;
+    const lon = (parcelaSelObj as { lon?: number } | undefined)?.lon ?? null;
+
+    if (isWeatherRelevant && lat != null && lon != null) {
+      try {
+        const res = await fetch(`/api/weather/spray-window?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);
+        const data = await res.json().catch(() => ({}));
+        const slots = data.slots ?? [];
+        if (slots.length > 0) {
+          const targetTs = new Date(fechaISO).getTime();
+          let slot = slots[0];
+          let bestDiff = Math.abs(new Date(slot.hour).getTime() - targetTs);
+          for (const s of slots) {
+            const d = Math.abs(new Date(s.hour).getTime() - targetTs);
+            if (d < bestDiff) {
+              slot = s;
+              bestDiff = d;
+            }
+          }
+          if (slot.suitability === "FORBIDDEN") {
+            const horaStr = new Date(slot.hour).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+            setRedWarningText(
+              `Condiciones climáticas adversas. Hay mucho viento/lluvia previsto para esa hora (${horaStr}: viento ${slot.wind_speed} km/h${slot.rain_prob ? `, prob. lluvia ${slot.rain_prob}%` : ""}). ¿Estás seguro de que quieres registrar esto? Podrías incumplir la normativa.`
+            );
+            setShowRedWarning(true);
+            return;
+          }
+        }
+      } catch {
+        // Si falla la consulta de clima, continuamos sin bloquear
+      }
+    }
+
+    doCreate(false);
   };
 
   const handleDelete = (id: string) => {
@@ -421,6 +436,16 @@ function LaboresContent() {
               />
             </div>
             <div>
+              <label className="label">Hora *</label>
+              <input
+                type="time"
+                className="input"
+                value={formHora}
+                onChange={(e) => setFormHora(e.target.value)}
+                required
+              />
+            </div>
+            <div>
               <label className="label">Tipo *</label>
               <select
                 className="input"
@@ -470,23 +495,33 @@ function LaboresContent() {
         </form>
       )}
       {showRedWarning && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="card max-w-sm w-full space-y-3">
-            <h3 className="text-lg font-semibold text-red-700">Ventana de tratamiento ROJA</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="alertdialog" aria-modal="true" aria-labelledby="weather-alert-title">
+          <div className="card max-w-md w-full mx-4 space-y-3 border-2 border-rose-300 bg-rose-50/95">
+            <h3 id="weather-alert-title" className="text-lg font-semibold text-rose-800 flex items-center gap-2">
+              ⚠️ Condiciones climáticas adversas
+            </h3>
             <p className="text-sm text-tierra-800 whitespace-pre-wrap">
               {redWarningText ??
-                "Las condiciones climáticas actuales no son adecuadas para aplicar fitosanitarios (semáforo en rojo). Cambia la hora o espera a una franja verde/amarilla."}
+                "Hay mucho viento o lluvia previsto para esa hora. ¿Estás seguro de que quieres registrar esto? Podrías incumplir la normativa."}
             </p>
-            <p className="text-xs text-tierra-500">
-              Revisa la calculadora de ventana de tratamiento en la ficha de la parcela para elegir una franja segura.
-            </p>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
               <button
                 type="button"
-                className="btn-primary"
+                className="btn-secondary"
                 onClick={() => setShowRedWarning(false)}
               >
-                Entendido
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-primary bg-rose-600 hover:bg-rose-700 text-white"
+                onClick={() => {
+                  setShowRedWarning(false);
+                  doCreate(true);
+                }}
+                disabled={loadingForm}
+              >
+                Guardar de todas formas
               </button>
             </div>
           </div>

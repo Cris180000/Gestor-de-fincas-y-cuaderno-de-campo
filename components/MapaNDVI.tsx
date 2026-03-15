@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { MapContainer, TileLayer, useMap, ImageOverlay } from "react-leaflet";
+import { MapContainer, TileLayer, useMap, ImageOverlay, Polygon, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { Layers, Plus, Minus } from "lucide-react";
 // @ts-ignore: tipos no oficiales para estas librerías
 import GeoRasterLayer from "georaster-layer-for-leaflet";
 // @ts-ignore
@@ -27,6 +28,13 @@ interface TimeRange {
 
 interface NDVIRasterLayerProps {
   tiffData: ArrayBuffer;
+}
+
+interface ParcelInfoPopup {
+  nombre?: string;
+  referenciaCatastral?: string;
+  superficieHa?: number | null;
+  provisional?: boolean;
 }
 
 function NDVIRasterLayer({ tiffData }: NDVIRasterLayerProps) {
@@ -154,9 +162,19 @@ function NDVIOverlay({ enabled, timeRange }: { enabled: boolean; timeRange?: Tim
   return <ImageOverlay url={url} bounds={bounds} opacity={0.85} zIndex={300} />;
 }
 
+function MapInstanceBridge({ onMapReady }: { onMapReady: (map: L.Map) => void }) {
+  const map = useMap();
+  useEffect(() => {
+    onMapReady(map);
+  }, [map, onMapReady]);
+  return null;
+}
+
 export interface MapaNDVIProps {
   center: [number, number];
   zoom?: number;
+  parcelPolygon?: [number, number][];
+  parcelInfo?: ParcelInfoPopup;
   refCatastral?: string;
   onRefCatastralChange?: (value: string) => void;
   onCenterFromRef?: (lat: number, lon: number) => void;
@@ -171,26 +189,57 @@ export interface MapaNDVIProps {
    * últimos 30 días.
    */
   timeRange?: TimeRange;
+  /**
+   * Segundo rango para comparación temporal (Antes/Después). Si se indica,
+   * se muestra un selector para alternar entre timeRange y timeRangeCompare.
+   */
+  timeRangeCompare?: TimeRange;
+}
+
+function defaultLast30Days(): TimeRange {
+  const end = new Date();
+  const start = new Date(end);
+  start.setDate(start.getDate() - 30);
+  return { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) };
+}
+
+function defaultPrevious30Days(): TimeRange {
+  const end = new Date();
+  end.setDate(end.getDate() - 31);
+  const start = new Date(end);
+  start.setDate(start.getDate() - 29);
+  return { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) };
 }
 
 export function MapaNDVI({
   center,
   zoom = 14,
+  parcelPolygon,
+  parcelInfo,
   refCatastral = "",
   onRefCatastralChange,
   onCenterFromRef,
   overlayImage,
   timeRange,
+  timeRangeCompare,
 }: MapaNDVIProps) {
   const [ndviOn, setNdviOn] = useState(true);
   const [coordError, setCoordError] = useState<string | null>(null);
   const [loadingCoords, setLoadingCoords] = useState(false);
   const [tiffData, setTiffData] = useState<ArrayBuffer | null>(null);
+  const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
+  const [comparePeriod, setComparePeriod] = useState<"A" | "B">("A");
+  const [compareMode, setCompareMode] = useState(false);
+  const [mapKey] = useState(() => Math.random());
+
+  const effectiveTimeRange = timeRange ?? defaultLast30Days();
+  const compareRange = timeRangeCompare ?? defaultPrevious30Days();
+  const activeTimeRange = compareMode && timeRangeCompare ? (comparePeriod === "A" ? effectiveTimeRange : compareRange) : effectiveTimeRange;
 
   const buscarCoords = async () => {
     const rc = (refCatastral ?? "").replace(/\s/g, "").trim();
     if (rc.length < 14) {
-      setCoordError("Introduce una referencia catastral de 14 caracteres.");
+      setCoordError("Introduce una referencia catastral de 14, 18 o 20 caracteres.");
       return;
     }
     setCoordError(null);
@@ -210,15 +259,14 @@ export function MapaNDVI({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2 items-center">
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={ndviOn} onChange={(e) => setNdviOn(e.target.checked)} className="rounded" />
-          Capa NDVI (vegetación)
-        </label>
+        <p className="text-sm text-tierra-700">
+          Capa NDVI: <span className="font-semibold">{ndviOn ? "Activa" : "Oculta"}</span>
+        </p>
         {!tiffData && (
           <>
             <input
               type="text"
-              placeholder="Ref. catastral (14 dígitos) para centrar"
+              placeholder="Ref. catastral (14, 18 o 20 caracteres)"
               className="input text-sm w-52 font-mono"
               value={refCatastral}
               onChange={(e) => onRefCatastralChange?.(e.target.value)}
@@ -261,17 +309,92 @@ export function MapaNDVI({
           )}
         </div>
         {coordError && <span className="text-sm text-red-600">{coordError}</span>}
+        {!tiffData && !overlayImage && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCompareMode((v) => !v)}
+              className={`text-sm px-3 py-1.5 rounded-lg border ${compareMode ? "bg-primary/10 border-primary text-primary" : "border-tierra-200 text-tierra-600 hover:bg-tierra-50"}`}
+            >
+              Comparar fechas
+            </button>
+            {compareMode && (
+              <div className="flex rounded-lg border border-tierra-200 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setComparePeriod("B")}
+                  className={`px-3 py-1.5 text-sm ${comparePeriod === "B" ? "bg-tierra-200 font-medium" : "bg-white hover:bg-tierra-50"}`}
+                >
+                  Anterior ({compareRange.from}–{compareRange.to})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setComparePeriod("A")}
+                  className={`px-3 py-1.5 text-sm border-l border-tierra-200 ${comparePeriod === "A" ? "bg-tierra-200 font-medium" : "bg-white hover:bg-tierra-50"}`}
+                >
+                  Reciente ({effectiveTimeRange.from}–{effectiveTimeRange.to})
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="relative rounded-lg overflow-hidden border border-tierra-200" style={{ height: "450px" }}>
         <MapContainer
+          key={mapKey}
           center={center}
           zoom={zoom}
           style={{ height: "100%", width: "100%" }}
           scrollWheelZoom
+          zoomControl={false}
         >
+          <MapInstanceBridge onMapReady={setMapInstance} />
           <SetCenter center={center} zoom={zoom} />
           <TileLayer url={OSM_URL} attribution={OSM_ATTRIBUTION} />
+          {parcelPolygon && parcelPolygon.length >= 3 && (
+            <Polygon
+              positions={parcelPolygon}
+              pathOptions={{
+                fillColor: "#10b981",
+                fillOpacity: 0.2,
+                color: "#047857",
+                weight: 2,
+                dashArray: parcelInfo?.provisional ? "6 6" : undefined,
+              }}
+            />
+          )}
+          {parcelInfo && (
+            <Popup
+              position={center}
+              className="gis-popup-card"
+              closeButton={false}
+              autoPan={false}
+            >
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-tierra-900">
+                  {parcelInfo.nombre ?? "Parcela"}
+                </p>
+                {parcelInfo.referenciaCatastral && (
+                  <p className="text-xs text-tierra-600 font-mono">
+                    RC: {parcelInfo.referenciaCatastral}
+                  </p>
+                )}
+                {parcelInfo.superficieHa != null && (
+                  <p className="text-xs text-tierra-700">
+                    Superficie:{" "}
+                    <span className="font-medium">{Number(parcelInfo.superficieHa).toFixed(2)} ha</span>
+                  </p>
+                )}
+                <p className="text-xs text-tierra-700">
+                  Estado:{" "}
+                  <span className="font-medium">
+                    {parcelInfo.provisional ? "Provisional" : "Definitiva"}
+                  </span>
+                </p>
+              </div>
+            </Popup>
+          )}
           {overlayImage ? (
             <ImageOverlay
               url={overlayImage}
@@ -287,9 +410,41 @@ export function MapaNDVI({
           ) : tiffData ? (
             <NDVIRasterLayer tiffData={tiffData} />
           ) : (
-            <NDVIOverlay enabled={ndviOn} timeRange={timeRange} />
+            <NDVIOverlay enabled={ndviOn} timeRange={activeTimeRange} />
           )}
         </MapContainer>
+
+        <div className="absolute top-3 right-3 z-[500] flex flex-col gap-2 pointer-events-none">
+          <button
+            type="button"
+            onClick={() => mapInstance?.zoomIn()}
+            className="pointer-events-auto h-10 w-10 rounded-xl bg-white text-tierra-700 shadow-subtle border border-tierra-200 hover:bg-tierra-50 inline-flex items-center justify-center"
+            aria-label="Acercar"
+            title="Acercar"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => mapInstance?.zoomOut()}
+            className="pointer-events-auto h-10 w-10 rounded-xl bg-white text-tierra-700 shadow-subtle border border-tierra-200 hover:bg-tierra-50 inline-flex items-center justify-center"
+            aria-label="Alejar"
+            title="Alejar"
+          >
+            <Minus className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setNdviOn((v) => !v)}
+            className={`pointer-events-auto h-10 w-10 rounded-xl bg-white shadow-subtle border border-tierra-200 hover:bg-tierra-50 inline-flex items-center justify-center ${
+              ndviOn ? "text-primary" : "text-tierra-700"
+            }`}
+            aria-label="Activar o desactivar capa NDVI"
+            title="Capas"
+          >
+            <Layers className="h-4 w-4" />
+          </button>
+        </div>
 
         <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between pointer-events-none">
           <div className="bg-white/95 rounded px-2 py-1.5 shadow text-xs text-tierra-700">

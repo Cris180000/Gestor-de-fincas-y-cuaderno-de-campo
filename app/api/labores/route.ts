@@ -78,6 +78,7 @@ export async function GET(request: NextRequest) {
     realizadaAt: l.realizadaAt,
     lat: l.lat,
     lon: l.lon,
+    weatherWarningIgnored: l.weatherWarningIgnored ?? false,
     createdAt: l.createdAt,
     parcela: { id: l.parcela.id, nombre: l.parcela.nombre, finca: l.parcela.finca },
   }));
@@ -194,6 +195,7 @@ export async function POST(request: NextRequest) {
       nKgHa,
       pKgHa,
       kKgHa,
+      weatherWarningIgnored: result.data.weatherWarningIgnored ?? false,
     },
     include: {
       parcela: { include: { finca: { select: { id: true, nombre: true } } } },
@@ -212,6 +214,7 @@ export async function POST(request: NextRequest) {
       realizadaAt: labor.realizadaAt,
       lat: labor.lat,
       lon: labor.lon,
+      weatherWarningIgnored: labor.weatherWarningIgnored ?? false,
       createdAt: labor.createdAt,
       parcela: { id: labor.parcela.id, nombre: labor.parcela.nombre, finca: labor.parcela.finca },
     },

@@ -63,6 +63,11 @@ function LoginForm() {
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button type="submit" className="btn-primary w-full">Entrar</button>
         <p className="text-sm text-tierra-600 text-center">
+          <Link href="/olvidaste-contrasena" className="text-verde-600 font-medium hover:underline">
+            ¿Olvidaste la contraseña?
+          </Link>
+        </p>
+        <p className="text-sm text-tierra-600 text-center">
           ¿No tienes cuenta?{" "}
           <Link href="/registro" className="text-verde-600 font-medium hover:underline">
             Registrarse

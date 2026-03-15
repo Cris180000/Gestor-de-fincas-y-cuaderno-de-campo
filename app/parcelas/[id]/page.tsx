@@ -8,6 +8,7 @@ import { parcelasApi, type ParcelaItem } from "@/lib/offline-api";
 import { getStore, deleteParcela } from "@/lib/store";
 import type { Cultivo } from "@/lib/types";
 import { SprayWindowCalculator } from "@/components/SprayWindowCalculator";
+import { AlertsPanel } from "@/components/AlertsPanel";
 
 const MapaNDVI = dynamic(() => import("@/components/MapaNDVI").then((m) => m.MapaNDVI), {
   ssr: false,
@@ -137,6 +138,24 @@ export default function ParcelaDetallePage() {
         </div>
       )}
 
+      <section id="spray">
+        <AlertsPanel
+          parcelId={id}
+          triggerGenerate={
+            (parcela as { lat?: number; lon?: number }).lat != null &&
+            (parcela as { lat?: number; lon?: number }).lon != null
+              ? {
+                  lat: (parcela as { lat: number }).lat,
+                  lon: (parcela as { lon: number }).lon,
+                  parcelId: id,
+                  parcelName: parcela.nombre,
+                }
+              : undefined
+          }
+          limit={5}
+        />
+      </section>
+
       <SprayWindowCalculator
         lat={parcela.lat ?? undefined}
         lon={parcela.lon ?? undefined}
@@ -202,6 +221,12 @@ export default function ParcelaDetallePage() {
           <MapaNDVI
             center={mapCenter ?? [40.4, -3.7]}
             zoom={15}
+            parcelInfo={{
+              nombre: parcela.nombre,
+              referenciaCatastral: parcela.referenciaCatastral ?? undefined,
+              superficieHa: parcela.superficie ?? null,
+              provisional: false,
+            }}
             refCatastral={rcMapa}
             onRefCatastralChange={setRcMapa}
             onCenterFromRef={(lat, lon) => setMapCenter([lat, lon])}

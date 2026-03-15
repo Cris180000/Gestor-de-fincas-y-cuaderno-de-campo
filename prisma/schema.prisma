@@ -18,10 +18,24 @@ model User {
   password  String   // En producción usar hash (bcrypt, etc.)
   createdAt DateTime @default(now())
 
-  fincas Finca[]
-  costes Coste[]
-  devices Device[]
-  diagnosticos Diagnostico[]
+  fincas                Finca[]
+  costes                Coste[]
+  devices               Device[]
+  diagnosticos          Diagnostico[]
+  passwordResetTokens   PasswordResetToken[]
+  agronomicAlerts       AgronomicAlert[]
+  recommendationOutcomes RecommendationOutcome[]
+}
+
+// --- Token para recuperar contraseña (enlace por email) ---
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // --- Finca ---
@@ -80,6 +94,7 @@ model Labor {
   nKgHa       Float?    @map("n_kg_ha")
   pKgHa       Float?    @map("p_kg_ha")
   kKgHa       Float?    @map("k_kg_ha")
+  weatherWarningIgnored Boolean? @default(false) @map("weather_warning_ignored")
   createdAt   DateTime  @default(now())
 
   parcela Parcela @relation(fields: [parcelaId], references: [id], onDelete: Cascade)
@@ -161,4 +176,39 @@ model Telemetry {
   device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@index([deviceId, timestamp], name: "idx_telemetry_device_ts")
+}
+
+// --- Alertas agronómicas proactivas ---
+model AgronomicAlert {
+  id                  String   @id @default(cuid())
+  userId              String   @map("user_id")
+  parcelId            String?  @map("parcel_id")
+  priority            String   // critical | high | medium
+  title               String
+  message             String
+  recommendationType  String   @map("recommendation_type") // spray_window | water_stress | disease_risk | other
+  ctaLabel            String?  @map("cta_label")
+  ctaHref             String?  @map("cta_href")
+  expiresAt           DateTime @map("expires_at")
+  status              String   @default("new") // new | seen | dismissed | actioned
+  createdAt           DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, expiresAt])
+}
+
+// --- Resultado de recomendaciones (feedback loop) ---
+model RecommendationOutcome {
+  id                 String   @id @default(cuid())
+  userId             String   @map("user_id")
+  recommendationId   String   @map("recommendation_id")
+  recommendationType String   @map("recommendation_type")
+  action             String   // accepted | rejected
+  worked             Boolean? // null si no aplica
+  createdAt          DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, recommendationType])
 }

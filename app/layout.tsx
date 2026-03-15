@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { Nav } from "@/components/Nav";
+import { BottomNav } from "@/components/BottomNav";
 import { AuthGuard } from "@/components/AuthGuard";
 import { OfflineBanner } from "@/components/OfflineBanner";
 
@@ -41,9 +42,10 @@ export default function RootLayout({
             </Suspense>
           </header>
           <OfflineBanner />
-          <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6 pb-24">
+          <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6 pb-28 md:pb-24">
             <AuthGuard>{children}</AuthGuard>
           </main>
+          <BottomNav />
         </div>
         </Providers>
       </body>

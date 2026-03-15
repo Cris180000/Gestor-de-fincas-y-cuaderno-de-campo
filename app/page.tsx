@@ -4,9 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { fincasApi, parcelasApi, laboresApi } from "@/lib/offline-api";
+import { seedSensorsAction } from "@/app/actions/seed-sensors";
 import type { FincaItem, ParcelaItem, LaborItem } from "@/lib/offline-api";
 import { getStore } from "@/lib/store";
 import { SensorWidget } from "@/components/SensorWidget";
+import { SprayWindowWidget } from "@/components/SprayWindowWidget";
+import { AlertsPanel } from "@/components/AlertsPanel";
+import { BuscadorReferenciaCatastro } from "@/components/BuscadorReferenciaCatastro";
 import { useSensorData } from "@/lib/hooks/useSensorData";
 
 const MapaNDVI = dynamic(() => import("@/components/MapaNDVI").then((m) => m.MapaNDVI), {
@@ -15,6 +19,37 @@ const MapaNDVI = dynamic(() => import("@/components/MapaNDVI").then((m) => m.Map
 });
 
 const DIAS_LABORES_RECIENTES = 7;
+
+function SeedSensorsButton() {
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function handleSeed() {
+    setPending(true);
+    setMessage(null);
+    try {
+      const result = await seedSensorsAction();
+      setMessage(result.ok ? result.message : `Error: ${result.message}`);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="mb-2 flex items-center gap-2">
+      <button
+        type="button"
+        onClick={handleSeed}
+        disabled={pending}
+        className="opacity-30 hover:opacity-100 focus:opacity-100 text-xs text-tierra-500 hover:text-tierra-700 focus:outline-none disabled:opacity-50"
+        title="Poblar la base de datos con 2 dispositivos y 7 días de telemetría de prueba"
+      >
+        {pending ? "Poblando…" : "Poblar datos sensores (pruebas)"}
+      </button>
+      {message && <span className="text-xs text-tierra-600">{message}</span>}
+    </div>
+  );
+}
 
 type SlotSuitability = "bueno" | "regular" | "malo";
 
@@ -195,6 +230,26 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Buscar por referencia catastral (14, 18 o 20 caracteres) */}
+      <section>
+        <BuscadorReferenciaCatastro onCentrarMapa={setNdviCenter} />
+      </section>
+
+      {/* Alertas agronómicas proactivas */}
+      {ndviCenter && (
+        <section>
+          <AlertsPanel
+            triggerGenerate={{
+              lat: ndviCenter[0],
+              lon: ndviCenter[1],
+              parcelId: parcelas.find((p) => (p as { lat?: number }).lat != null)?.id,
+              parcelName: parcelas.find((p) => (p as { lat?: number }).lat != null)?.nombre,
+            }}
+            limit={5}
+          />
+        </section>
+      )}
+
       {/* Estado en tiempo real: Agricultura 4.0 */}
       <section>
         <h2 className="text-lg font-semibold text-tierra-800 mb-3">Estado en Tiempo Real</h2>
@@ -261,6 +316,15 @@ export default function HomePage() {
             )}
           </div>
         </div>
+
+        {/* Ventana de pulverización: timeline 24–48 h */}
+        <div className="mt-4">
+          <SprayWindowWidget
+            lat={ndviCenter?.[0]}
+            lon={ndviCenter?.[1]}
+            hoursCount={48}
+          />
+        </div>
       </section>
 
       {laboresRecientes.length > 0 && (
@@ -313,6 +377,8 @@ export default function HomePage() {
 
       <section>
         <h2 className="text-lg font-semibold text-tierra-800 mb-3">Sensores (demo)</h2>
+        {/* Botón oculto para poblar BD con datos de sensores (pruebas). Solo visible por accesibilidad o al hacer foco. */}
+        <SeedSensorsButton />
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           <SensorWidget
             title="Sonda humedad · Parcela 1"

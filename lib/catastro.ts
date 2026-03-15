@@ -5,7 +5,7 @@
 
 import { XMLParser } from "fast-xml-parser";
 
-const BASE = "http://ovc.catastro.meh.es/ovcservweb/OVCSWLocalizacionRC/OVCCallejero.asmx";
+const BASE = "https://ovc.catastro.meh.es/ovcservweb/OVCSWLocalizacionRC/OVCCallejero.asmx";
 
 export interface DatosCatastrales {
   referenciaCatastral: string;
@@ -53,11 +53,17 @@ export async function consultarPorReferencia(
     const res = await fetch(url, {
       method: "GET",
       headers: { "User-Agent": "GestorFincas/1.0 (consulta catastral)" },
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(20000),
     });
     text = await res.text();
     if (!res.ok) {
       return { ok: false, error: `Catastro no disponible (${res.status}). Inténtelo más tarde.` };
+    }
+    if (text.includes("Missing parameter") || text.includes("Missing Parameter")) {
+      return { ok: false, error: "El Catastro requiere Provincia y Municipio. Indícalos en los campos opcionales (ej. GR y nombre del municipio)." };
+    }
+    if (/NO EXISTE|no existe|cuerr/i.test(text)) {
+      return { ok: false, error: "Provincia o municipio no válidos. Use el código de provincia (ej. GR) y el nombre del municipio." };
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error de conexión con el Catastro";
@@ -66,7 +72,7 @@ export async function consultarPorReferencia(
 
   const datos = parseRespuestaConsultaDNPRC(text, ref);
   if (datos.length === 0) {
-    return { ok: false, error: "No se encontraron datos para esa referencia catastral." };
+    return { ok: false, error: "No se encontraron datos para esa referencia. Pruebe añadiendo Provincia y Municipio (ej. GR y su municipio)." };
   }
   return { ok: true, datos };
 }
@@ -171,24 +177,30 @@ function refCatastralFromIdbi(idbi: Record<string, unknown>): string {
   return [pc1, pc2, car, cc1, cc2].filter(Boolean).join("");
 }
 
-const BASE_COORDENADAS = "http://ovc.catastro.meh.es/ovcservweb/OVCSWLocalizacionRC/OVCCoordenadas.asmx";
+const BASE_COORDENADAS = "https://ovc.catastro.meh.es/ovcservweb/OVCSWLocalizacionRC/OVCCoordenadas.asmx";
 
 /**
- * Obtiene coordenadas del centroide de una parcela por referencia catastral (14 caracteres).
- * SRS EPSG:4326 = WGS84 (lat, lon). El servicio devuelve X,Y (en 4326: X=lon, Y=lat).
+ * Obtiene coordenadas del centroide de una parcela por referencia catastral.
+ * Acepta 14, 18 o 20 caracteres; el servicio del Catastro usa los 14 primeros.
+ * Si el Catastro lo exige, indique provincia (ej. GR) y municipio (nombre).
+ * SRS EPSG:4326 = WGS84 (lat, lon).
  */
 export async function consultarCoordenadas(
   rc: string,
-  srs: string = "EPSG:4326"
+  srs: string = "EPSG:4326",
+  provincia?: string,
+  municipio?: string
 ): Promise<{ ok: true; lat: number; lon: number; direccion?: string } | { ok: false; error: string }> {
   const ref = normalizarRC(rc).slice(0, 14);
   if (ref.length < 14) {
-    return { ok: false, error: "La referencia catastral debe tener 14 caracteres para consultar coordenadas." };
+    return { ok: false, error: "La referencia catastral debe tener al menos 14 caracteres (14, 18 o 20)." };
   }
 
   const params = new URLSearchParams();
   params.set("RC", ref);
   params.set("SRS", srs);
+  if (provincia?.trim()) params.set("Provincia", provincia.trim());
+  if (municipio?.trim()) params.set("Municipio", municipio.trim());
 
   const url = `${BASE_COORDENADAS}/Consulta_CPMRC?${params.toString()}`;
   let text: string;
@@ -196,10 +208,16 @@ export async function consultarCoordenadas(
     const res = await fetch(url, {
       method: "GET",
       headers: { "User-Agent": "GestorFincas/1.0 (consulta catastral)" },
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(20000),
     });
     text = await res.text();
     if (!res.ok) return { ok: false, error: "Catastro no disponible." };
+    if (text.includes("Missing parameter") || text.includes("Missing Parameter")) {
+      return { ok: false, error: "El Catastro requiere Provincia y Municipio. Indícalos en los campos opcionales (ej. GR y nombre del municipio)." };
+    }
+    if (/NO EXISTE|no existe|cuerr/i.test(text)) {
+      return { ok: false, error: "Provincia o municipio no válidos. Use el código de provincia (ej. GR) y el nombre del municipio." };
+    }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Error de conexión" };
   }

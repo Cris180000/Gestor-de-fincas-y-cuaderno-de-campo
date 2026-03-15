@@ -481,7 +481,7 @@ export const laboresApi = {
     if (!local) throw new Error("Labor no encontrada");
     return { data: local };
   },
-  create: async (body: { parcelaId: string; tipo: string; fecha: string; descripcion: string; producto?: string; cantidad?: string }): Promise<{ data: LaborItem }> => {
+  create: async (body: { parcelaId: string; tipo: string; fecha: string; descripcion: string; producto?: string; cantidad?: string; weather_warning_ignored?: boolean }): Promise<{ data: LaborItem }> => {
     const id = tempId();
     const now = new Date().toISOString();
     const newLabor: LaborItem = {
@@ -492,6 +492,7 @@ export const laboresApi = {
       descripcion: body.descripcion,
       producto: body.producto ?? null,
       cantidad: body.cantidad ?? null,
+      weatherWarningIgnored: body.weather_warning_ignored ?? false,
       createdAt: now,
     };
     if (isOnline()) {
