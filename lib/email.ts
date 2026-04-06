@@ -1,22 +1,50 @@
 /**
  * Envío de correos (recuperación de contraseña, etc.) vía SMTP.
- * Configuración en .env: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM (opcional).
+ *
+ * - Producción / cuando defines SMTP_* en .env: usa tu servidor real.
+ * - Desarrollo sin SMTP_*: usa Ethereal (https://ethereal.email), correo de prueba con URL de vista previa.
  */
 
 import nodemailer from "nodemailer";
 
-function getTransport() {
+let etherealAccountPromise: Promise<nodemailer.TestAccount> | null = null;
+
+function getEtherealAccount(): Promise<nodemailer.TestAccount> {
+  if (!etherealAccountPromise) {
+    etherealAccountPromise = nodemailer.createTestAccount();
+  }
+  return etherealAccountPromise;
+}
+
+async function createMailTransport(): Promise<nodemailer.Transporter | null> {
   const host = process.env.SMTP_HOST?.trim();
   const port = parseInt(process.env.SMTP_PORT ?? "587", 10);
   const user = process.env.SMTP_USER?.trim();
   const pass = process.env.SMTP_PASS?.trim();
-  if (!host || !user || !pass) return null;
-  return nodemailer.createTransport({
-    host,
-    port: Number.isNaN(port) ? 587 : port,
-    secure: port === 465,
-    auth: { user, pass },
-  });
+
+  if (host && user && pass) {
+    return nodemailer.createTransport({
+      host,
+      port: Number.isNaN(port) ? 587 : port,
+      secure: port === 465,
+      auth: { user, pass },
+    });
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    const account = await getEtherealAccount();
+    console.warn(
+      "[email] Sin SMTP_HOST/SMTP_USER/SMTP_PASS: usando Ethereal (solo desarrollo). Añade SMTP_* al .env para enviar a tu bandeja real."
+    );
+    return nodemailer.createTransport({
+      host: "smtp.ethereal.email",
+      port: 587,
+      secure: false,
+      auth: { user: account.user, pass: account.pass },
+    });
+  }
+
+  return null;
 }
 
 export interface SendMailOptions {
@@ -26,29 +54,41 @@ export interface SendMailOptions {
   html?: string;
 }
 
+export interface SendMailResult {
+  ok: boolean;
+  /** Presente con Ethereal: abre el HTML del mensaje en el navegador */
+  previewUrl?: string;
+}
+
 /**
- * Envía un correo. Devuelve true si se envió correctamente, false si no hay SMTP configurado o falla.
+ * Envía un correo. En desarrollo sin SMTP configurado usa Ethereal y devuelve previewUrl.
  */
-export async function sendMail(options: SendMailOptions): Promise<boolean> {
-  const transport = getTransport();
+export async function sendMail(options: SendMailOptions): Promise<SendMailResult> {
+  const transport = await createMailTransport();
   if (!transport) {
     if (process.env.NODE_ENV === "development") {
-      console.warn("[email] SMTP no configurado. Define SMTP_HOST, SMTP_USER, SMTP_PASS en .env");
+      console.warn("[email] No hay transporte (¿NODE_ENV sin development?). Define SMTP_* en .env");
     }
-    return false;
+    return { ok: false };
   }
-  const from = process.env.SMTP_FROM?.trim() || process.env.SMTP_USER || "noreply@localhost";
+
+  const from =
+    process.env.SMTP_FROM?.trim() ||
+    process.env.SMTP_USER?.trim() ||
+    "Cuaderno Campo <noreply@localhost>";
+
   try {
-    await transport.sendMail({
+    const info = await transport.sendMail({
       from,
       to: options.to,
       subject: options.subject,
       text: options.text,
       html: options.html ?? options.text.replace(/\n/g, "<br>"),
     });
-    return true;
+    const previewUrl = nodemailer.getTestMessageUrl(info) || undefined;
+    return { ok: true, previewUrl };
   } catch (e) {
     console.error("[email] Error enviando correo:", e);
-    return false;
+    return { ok: false };
   }
 }

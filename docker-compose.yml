@@ -1,0 +1,20 @@
+# Entorno listo para producción en un solo servidor.
+# 1) cp .env.production.example .env  2) Edita NEXTAUTH_*, SMTP_*  3) docker compose up -d --build
+
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      # Base persistente fuera del contenedor (SQLite en archivo dedicado)
+      DATABASE_URL: file:/data/prod.db
+    volumes:
+      - app_db:/data
+    restart: unless-stopped
+
+volumes:
+  app_db:

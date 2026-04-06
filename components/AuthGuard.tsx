@@ -1,14 +1,26 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 
-const PUBLIC_PATHS = ["/login", "/registro"];
+const PUBLIC_PATHS = ["/login", "/registro", "/olvidaste-contrasena", "/restablecer-contrasena"];
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { data: session, status } = useSession();
-  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+  const { status } = useSession();
+  const pathname = usePathname() ?? "";
+  const router = useRouter();
 
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+
+  useEffect(() => {
+    if (isPublic || status !== "unauthenticated") return;
+    const path =
+      typeof window !== "undefined"
+        ? `${window.location.pathname}${window.location.search}`
+        : pathname;
+    router.replace(`/login?callbackUrl=${encodeURIComponent(path)}`);
+  }, [isPublic, status, pathname, router]);
 
   if (isPublic) return <>{children}</>;
   if (status === "loading") {

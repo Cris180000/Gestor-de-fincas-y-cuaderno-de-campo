@@ -19,7 +19,11 @@ export function Nav() {
   const pathname = usePathname();
   const { data: session, status } = useSession();
 
-  const isPublic = pathname === "/login" || pathname === "/registro";
+  const isPublic =
+    pathname === "/login" ||
+    pathname === "/registro" ||
+    pathname === "/olvidaste-contrasena" ||
+    pathname === "/restablecer-contrasena";
   if (isPublic) {
     return (
       <nav className="flex gap-1 px-4 py-2 bg-tierra-700/80">

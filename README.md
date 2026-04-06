@@ -26,6 +26,8 @@ Abre [http://localhost:3000](http://localhost:3000). La primera vez tendrás que
 
 Si al ejecutar `npm run dev` ves un error del tipo *"no es una aplicación Win32 válida"* o *"Failed to load SWC binary"* (común si el proyecto está en OneDrive), el proyecto está configurado para usar Babel (`.babelrc`). Si sigue fallando, mueve el proyecto fuera de OneDrive y ejecuta de nuevo `npm install` y `npm run dev`.
 
+**Producción:** Docker (`Dockerfile`, `docker-compose.yml`), variables en [.env.production.example](.env.production.example) y guía paso a paso en [DEPLOY.md](DEPLOY.md).
+
 ## Tecnologías
 
 - **Next.js 14** (App Router) con **TypeScript**
